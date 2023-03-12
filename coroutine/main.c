@@ -54,8 +54,10 @@ int main() {
   co_waitall();
   // test get return value
   for (int i = 0; i < 10; ++i) {
-    if (co_getret(coroutine[i]) != 100)
+    if (co_getret(coroutine[i]) != 100) {
+      printf("%d:  %d\n", i, co_getret(coroutine[i]));
       fail("Coroutine return value failed", __func__, __LINE__);
+    }
   }
   // test nested creation
   coroutine[0] = co_start(nested_costart);

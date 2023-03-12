@@ -8,6 +8,7 @@ typedef long long cid_t;
 #define FINISHED 2
 #define RUNNING 1
 #define IDLE 0
+#define STACK_SIZE 8*1024
 
 // 模拟寄存器
 enum Registers {

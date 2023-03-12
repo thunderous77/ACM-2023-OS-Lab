@@ -1,4 +1,7 @@
+#define _GNU_SOURCE
 #include "coroutine.h"
+#include <sched.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -13,7 +16,7 @@ coroutine_context *create_coroutine_context(int (*routine)(void),
                                             coroutine_pool *pool, cid_t cid) {
   coroutine_context *coroutine;
   coroutine = (coroutine_context *)malloc(sizeof(coroutine_context));
-  coroutine->stack_size = 8 * 1024 / sizeof(unsigned long long);
+  coroutine->stack_size = STACK_SIZE / sizeof(unsigned long long);
   coroutine->stack = (unsigned long long *)malloc(coroutine->stack_size *
                                                   sizeof(unsigned long long));
 
@@ -54,13 +57,19 @@ void destruct_coroutine_context(coroutine_context *coroutine) {
 }
 
 void coroutine_main(coroutine_context *coroutine) {
+  // 隔离协程资源
+  // Reference: https://blog.csdn.net/whatday/article/details/104430169
+  clone(coroutine->func, (void *)coroutine->callee_registers[RSP],
+        CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID |
+            CLONE_NEWUSER | CLONE_NEWUTS | CLONE_NEWCGROUP,
+        NULL);
   coroutine->retval = (coroutine->func());
   coroutine->status = FINISHED;
   // 执行完后切换回调用 coroutine 的上下文
   coroutine_switch(coroutine->callee_registers, coroutine->caller_registers);
 }
 
-// 没有协程可以切换,直接切换回调用 yield 的上下文
+// 没有协程可以切换,直接切换回调用 coroutine 的上下文
 void yield(coroutine_context *coroutine) {
   // 当前协程变为 root 线程
   coroutine->pool->current_coroutine = coroutine->pool->root_coroutine;

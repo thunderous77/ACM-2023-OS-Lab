@@ -134,4 +134,28 @@ int pthread_join(pthread_t thread, //指定接收的进程
   typedef struct coroutine_pool coroutine_pool;
   ```
 
+
+## Bonus: 实现协程内核隔离
+
+[Reference](https://blog.csdn.net/whatday/article/details/104430169)
+
+* Namespace
+
+  **Namespace 是 Linux 内核用来隔离内核资源的方式。**通过 namespace 可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相关的资源，这两拨进程根本就感觉不到对方的存在。具体的实现方式是把一个或多个进程的相关资源指定在同一个 namespace 中。
+
+* clone() 函数
+
+  通过 clone() 在创建新进程的同时创建 namespace。
+
+  ```c
+  #define _GNU_SOURCE
+  #include <sched.h>
+  int clone(int (*fn)(void *), void *child_stack, int flags, void *arg);
+  // fn：指定一个由新进程执行的函数。当这个函数返回时，子进程终止。该函数返回一个整数，表示子进程的退出代码。
+  // child_stack：传入子进程使用的栈空间，也就是把用户态堆栈指针赋给子进程的 esp 寄存器(高位内存地址)。调用进程(指调用 clone() 的进程)应该总是为子进程分配新的堆栈。
+  // flags：表示使用哪些 CLONE_ 开头的标志位，与 namespace 相关的有CLONE_NEWIPC、CLONE_NEWNET、CLONE_NEWNS、CLONE_NEWPID、CLONE_NEWUSER、CLONE_NEWUTS 和 CLONE_NEWCGROUP。
+  // arg：指向传递给 fn() 函数的参数。
+  ```
+
   
+

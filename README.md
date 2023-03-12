@@ -6,9 +6,11 @@
 
 - [x] Thread
 - [x] Coroutine
-- [ ] Bonus
+- [x] Bonus
 
 ## Introduction
 
-* Study use `pthread.h` and implement coroutine in `C`
-* use the command `make && make run` to run each program
+* 学习使用 `pthread.h` 
+* 用 `C` 语言实现简单的协程
+* 隔离协程资源
+* 使用 `make && make run` 即可运行程序（编译选项见 Makefile）
