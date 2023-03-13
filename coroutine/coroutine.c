@@ -6,11 +6,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-extern void coroutine_init();
-extern void coroutine_switch(unsigned long long *save,
-                             unsigned long long *restore);
-extern void coroutine_ret();
-
 coroutine_context *create_coroutine_context(int (*routine)(void),
                                             coroutine_context *parent_coroutine,
                                             coroutine_pool *pool, cid_t cid) {
