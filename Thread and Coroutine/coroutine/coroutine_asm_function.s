@@ -38,4 +38,3 @@ coroutine_switch:
 
 .coroutine_ret:
     ret
-    

@@ -1,4 +1,4 @@
-#define _GNU_SOURCE
+F#define _GNU_SOURCE
 #include "coroutine.h"
 #include <sched.h>
 #include <signal.h>

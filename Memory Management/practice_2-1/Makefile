@@ -1,3 +1,9 @@
 .PHONY: all
 all:
-	gcc -o test main.c buddy.c
+	gcc -o buddy main.c
+
+run:
+	./buddy
+
+clean:
+	rm buddy
