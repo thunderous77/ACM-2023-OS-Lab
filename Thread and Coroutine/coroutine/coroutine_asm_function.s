@@ -20,7 +20,7 @@ coroutine_switch:
     movq  %r14, 104(%rdi)
     movq  %r15, 112(%rdi)
 
-    # 保存 ret 指令的地址（coroutine_ret）
+    # 保存 ret 指令的地址(coroutine_ret)
     leaq .coroutine_ret(%rip), %rbx
     movq  %rbx, 120(%rdi)
 

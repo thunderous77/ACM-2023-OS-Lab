@@ -1,4 +1,4 @@
-F#define _GNU_SOURCE
+#define _GNU_SOURCE
 #include "coroutine.h"
 #include <sched.h>
 #include <signal.h>
@@ -54,10 +54,10 @@ void destruct_coroutine_context(coroutine_context *coroutine) {
 void coroutine_main(coroutine_context *coroutine) {
   // 隔离协程资源
   // Reference: https://blog.csdn.net/whatday/article/details/104430169
-  clone(coroutine->func, (void *)coroutine->callee_registers[RSP],
-        CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID |
-            CLONE_NEWUSER | CLONE_NEWUTS | CLONE_NEWCGROUP,
-        NULL);
+  // clone(coroutine->func, (void *)coroutine->callee_registers[RSP],
+  //       CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID |
+  //           CLONE_NEWUSER | CLONE_NEWUTS | CLONE_NEWCGROUP,
+  //       NULL);
   coroutine->retval = (coroutine->func());
   coroutine->status = FINISHED;
   // 执行完后切换回调用 coroutine 的上下文
@@ -151,6 +151,7 @@ int co_start(int (*routine)(void)) {
 int co_getid() { return my_pool->current_coroutine->cid; }
 
 int co_getret(int cid) {
+  // co_wait(cid);
   return search_by_cid(cid, my_pool->root_coroutine)->retval;
 }
 

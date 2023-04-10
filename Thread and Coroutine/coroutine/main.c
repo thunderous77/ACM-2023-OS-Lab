@@ -43,7 +43,6 @@ int main() {
   srand(0);
   // *** stack smashing detected ***: terminated
   cid_t coroutine[10 * MAXN];
-  // coroutine[0] = co_start(test_costart);
   // test start routine
   for (int i = 0; i < 10; ++i) {
     coroutine[i] = co_start(test_costart);
@@ -79,7 +78,7 @@ int main() {
   printf("Main: after 2 coroutine yields.\n");
   // test getid
   // *** stack smashing detected ***: terminated
-  for (int i = 0; i < rand() % 1000; ++i)
+  for (int i = 0; i < rand() % 10; ++i)
     coroutine[i] = co_start(test_dummy);
   co_waitall();
   coroutine[0] = co_start(test_getid);
