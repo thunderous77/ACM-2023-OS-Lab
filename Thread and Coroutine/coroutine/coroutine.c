@@ -6,6 +6,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+coroutine_pool *my_pool = NULL;
+
 coroutine_context *create_coroutine_context(int (*routine)(void),
                                             coroutine_context *parent_coroutine,
                                             coroutine_pool *pool, cid_t cid) {
@@ -54,7 +56,7 @@ void destruct_coroutine_context(coroutine_context *coroutine) {
 void coroutine_main(coroutine_context *coroutine) {
   // 隔离协程资源
   // Reference: https://blog.csdn.net/whatday/article/details/104430169
-  // clone(coroutine->func, (void *)coroutine->callee_registers[RSP],
+  // clone(coroutine_run, (void *)coroutine->callee_registers[RSP],
   //       CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID |
   //           CLONE_NEWUSER | CLONE_NEWUTS | CLONE_NEWCGROUP,
   //       NULL);
@@ -122,8 +124,6 @@ coroutine_context *add_coroutine(coroutine_pool *pool, int (*routine)(void)) {
   pool->coroutine_cnt++;
   return new_coroutine;
 }
-
-coroutine_pool *my_pool = NULL;
 
 coroutine_context *search_by_cid(cid_t cid, coroutine_context *coroutine) {
   if (coroutine->cid == cid) {
