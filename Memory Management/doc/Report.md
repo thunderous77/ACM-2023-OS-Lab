@@ -75,6 +75,8 @@
   
     <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/Explicit free list1.png" alt="img" style="zoom:50%;" />
   
+    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/Explicit free list2.jpg" style="zoom: 25%;" />
+  
   * `Segregated free list`
   
 * c 代码语法
