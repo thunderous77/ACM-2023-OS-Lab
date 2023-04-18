@@ -49,7 +49,7 @@
 
     把所有块连接起来，每次分配时从头到尾扫描合适的空闲块
     
-    <img src="https://pic2.zhimg.com/80/v2-092fc522316822ae3c5508a321c98715_720w.webp" alt="img" style="zoom:50%;" />
+    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/\Implicit free list1.png" style="zoom:50%;" />
     
     这里 31 - 0 就是之前堆大小限制的优化
     
@@ -63,7 +63,7 @@
     
     前后都存 Block size 可以以常数时间查询块大小，从而以常数时间与前或后的块合并
     
-    ![img](https://pic2.zhimg.com/80/v2-b9cfe142c46c0f10604d29ed36beea19_720w.webp)
+    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/Implicit free list2.jpg" style="zoom:80%;" />
     
     Prologue block 和 Epilogue block 都是为了方便合并空闲块，而第一个则是为了对齐 8 byte
     
@@ -73,7 +73,7 @@
   
     遍历复杂度：O(块总数) $\to$ O(空闲块总数)
   
-    <img src="https://pic1.zhimg.com/80/v2-c0cb0926ad2e469833bfff9e3fffd2e4_720w.webp" alt="img" style="zoom:50%;" />
+    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/Explicit free list1.png" alt="img" style="zoom:50%;" />
   
   * `Segregated free list`
   
