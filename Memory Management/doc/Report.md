@@ -49,7 +49,7 @@
 
     把所有块连接起来，每次分配时从头到尾扫描合适的空闲块
     
-    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/\Implicit free list1.png" style="zoom:50%;" />
+    <img src="https://github.com/thunderous77/ACM-2023-OS-Lab/blob/main/Memory%20Management/doc/Implicit free list1.png" style="zoom:50%;" />
     
     这里 31 - 0 就是之前堆大小限制的优化
     
