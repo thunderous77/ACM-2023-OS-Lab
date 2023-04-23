@@ -1,7 +1,7 @@
 /*
  * mm-SFL.c - modify on the basis of mm-EFL-base.c, change explicit free list to
- * segregated free list. The performance is a little better than mm-EFL.c(score
- * 92).
+ * segregated free list. The performance on throughput is a little better than
+ * mm-EFL-base.c(still score 92).
  */
 #include <assert.h>
 #include <stddef.h>
