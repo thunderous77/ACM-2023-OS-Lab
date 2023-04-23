@@ -1,7 +1,7 @@
 /*
- * mm-EFL.c - modify on the basis of mm-EFL-base.c, change the double linked list of
- * free block to a single linked list. The performance is a little better than
- * mm-EFL.c(score 92).
+ * mm-EFL3.c - modify on the basis of mm-EFL-base.c, change the double linked
+ * list of free block to a single linked list. The performance is a little
+ * better than mm-EFL-base.c(score 92).
  */
 #include <assert.h>
 #include <stddef.h>
@@ -53,7 +53,7 @@
 #define WRITE(ptr, val)                                                        \
   ((*(unsigned int *)(ptr)) =                                                  \
        (unsigned int)(val))              /* write a word at address ptr */
-#define GET_SIZE(ptr) (READ(ptr) & ~0x3) /* get size of a block */
+#define GET_SIZE(ptr) (READ(ptr) & ~0x7) /* get size of a block */
 #define GET_ALLOC(ptr) (READ(ptr) & 0x1)
 /* get alloc bit of a block,  0 -> unallocated, 1 -> allocated */
 
@@ -86,14 +86,11 @@
 #define FIRST_BEST_FIT
 
 #ifdef FIRST_BEST_FIT
-#define MAX_SEARCH_FREE_BLOCK 10
+#define MAX_SEARCH_FREE_BLOCK 7
 #endif
 
 static char *heap_list;
 static char *free_list = NULL;
-
-// debug
-int cur_func, pre_func;
 
 // extend the heap by creating a new block and a new end
 // block return the start address of the new block after
@@ -117,8 +114,6 @@ static void remove_free_block(void *ptr);
 static void insert_free_block(void *ptr);
 
 static void *extend_heap(size_t heap_size) {
-  // printf("extend heap begin\n");
-  cur_func = 1;
   char *new_ptr;
 
   if ((long)(new_ptr = mem_sbrk(heap_size)) == -1)
@@ -132,22 +127,11 @@ static void *extend_heap(size_t heap_size) {
   SET_NEXT_FREE_BLOCK(new_ptr, 0);
   WRITE(HEADER(NEXT_BLOCK(new_ptr)), PACK(0, 1));
 
-  // printf("extend heap end\n");
   return merge_block(new_ptr);
 }
 
 static void *merge_block(void *ptr) {
-  // printf("merge block begin at %p\n", ptr);
-  cur_func = 2;
-  // printf("read at %p,size is %d\n", (char *)ptr - BSIZE,
-  //        GET_SIZE((char *)ptr - BSIZE));
-  // printf("previous block at %p, size %d, alloc %d\n", PREV_BLOCK(ptr),
-  //        GET_SIZE(HEADER(PREV_BLOCK(ptr))),
-  //        GET_ALLOC(HEADER(PREV_BLOCK(ptr))));
   size_t pre_alloc = GET_ALLOC(HEADER(PREV_BLOCK(ptr)));
-  // printf("next block at %p, size %d, alloc %d\n", NEXT_BLOCK(ptr),
-  //        GET_SIZE(HEADER(NEXT_BLOCK(ptr))),
-  //        GET_ALLOC(HEADER(NEXT_BLOCK(ptr))));
   size_t nxt_alloc = GET_ALLOC(HEADER(NEXT_BLOCK(ptr)));
   size_t block_size = GET_SIZE(HEADER(ptr));
 
@@ -175,13 +159,10 @@ static void *merge_block(void *ptr) {
     ptr = PREV_BLOCK(ptr);
   }
   insert_free_block(ptr);
-  // printf("merge block end\n");
   return ptr;
 }
 
 static void *find_fitted_block(size_t block_size) {
-  // printf("find fitted block begin\n");
-  cur_func = 3;
   void *ptr;
 
   /* first fit */
@@ -222,7 +203,6 @@ static void *find_fitted_block(size_t block_size) {
     if (free_block_cnt > MAX_SEARCH_FREE_BLOCK && best_ptr != NULL)
       break;
   }
-  // printf("find fitted block end\n");
   return best_ptr;
 #endif
 
@@ -230,8 +210,6 @@ static void *find_fitted_block(size_t block_size) {
 }
 
 static void set_block(void *ptr, size_t block_size) {
-  // printf("set block begin\n");
-  cur_func = 4;
   size_t current_block_size = GET_SIZE(HEADER(ptr));
   remove_free_block(ptr);
 
@@ -250,33 +228,24 @@ static void set_block(void *ptr, size_t block_size) {
     WRITE(HEADER(ptr), PACK(current_block_size, 1));
     WRITE(FOOTER(ptr), PACK(current_block_size, 1));
   }
-  // printf("set block end\n");
 }
 
 static void remove_free_block(void *ptr) {
-  // printf("remove free block at %p begin\n", ptr);
-  // printf("free list at %p\n", free_list);
-  // printf("alloc bit %d\n", GET_ALLOC(HEADER(ptr)));
   if (ptr == NULL || GET_ALLOC(HEADER(ptr)) == 1)
     return;
   if (free_list == ptr) {
-    // printf("next free block at %p\n", (char *)GET_NEXT_FREE_BLOCK(ptr));
     free_list = (char *)GET_NEXT_FREE_BLOCK(ptr);
     return;
   }
   void *pre_ptr = free_list;
   while (pre_ptr != NULL && GET_NEXT_FREE_BLOCK(pre_ptr) != ptr) {
-    // printf("previous free block at %p, next free block at %p", pre_ptr,
-    //        (char *)GET_NEXT_FREE_BLOCK(pre_ptr));
     pre_ptr = GET_NEXT_FREE_BLOCK(pre_ptr);
   }
   SET_NEXT_FREE_BLOCK(pre_ptr, (long)GET_NEXT_FREE_BLOCK(ptr));
   SET_NEXT_FREE_BLOCK(ptr, 0);
-  // printf("remove free block end\n");
 }
 
 static void insert_free_block(void *ptr) {
-  // printf("insert free block begin\n");
   if (ptr == NULL || GET_ALLOC(HEADER(ptr)) == 1) {
     return;
   }
@@ -289,21 +258,18 @@ static void insert_free_block(void *ptr) {
 
   SET_NEXT_FREE_BLOCK(ptr, (long)free_list);
   free_list = ptr;
-  // printf("insert free block end\n");
 }
 
 /*
  * mm_init - Called when a new trace starts.
  */
 int mm_init(void) {
-  // printf("mm_init begin\n");
   if ((heap_list = mem_sbrk(6 * WSIZE)) == (void *)-1)
     return -1;
   // init heap
   WRITE(heap_list, PACK(2 * DSIZE, 1));
   WRITE(heap_list + (1 * WSIZE), 0);
   WRITE(heap_list + (2 * WSIZE), 0);
-  // printf("write at %p\n", heap_list + (3 * WSIZE));
   WRITE(heap_list + (3 * WSIZE), PACK(2 * DSIZE, 1));
   WRITE(heap_list + (4 * WSIZE), PACK(0, 1));
   WRITE(heap_list + (5 * WSIZE), 0);
@@ -313,7 +279,6 @@ int mm_init(void) {
   // extend heap
   if (extend_heap(CHUNKSIZE) == NULL)
     return -1;
-  // printf("mm_init end\n");
   return 0;
 }
 
@@ -321,7 +286,6 @@ int mm_init(void) {
  * malloc - Allocate a block by strategy in find_fit().
  */
 void *malloc(size_t size) {
-  // printf("malloc begin\n");
   // block_size includes header and footer
   size_t block_size;
   size_t extend_size;
@@ -331,11 +295,10 @@ void *malloc(size_t size) {
     return NULL;
   }
 
-  block_size = DSIZE * ((size - 1 + DSIZE + BSIZE) / DSIZE);
+  block_size = ALIGN(size + BSIZE);
 
   if ((ptr = find_fitted_block(block_size)) != NULL) {
     set_block(ptr, block_size);
-    // printf("malloc end\n");
     return ptr;
   }
 
@@ -346,7 +309,6 @@ void *malloc(size_t size) {
     return NULL;
   }
   set_block(ptr, block_size);
-  // printf("malloc end\n");
   return ptr;
 }
 
@@ -355,7 +317,6 @@ void *malloc(size_t size) {
  * or next block.
  */
 void free(void *ptr) {
-  // printf("free begin\n");
   if (ptr == NULL)
     return;
   size_t size = GET_SIZE(HEADER(ptr));
@@ -364,7 +325,6 @@ void free(void *ptr) {
   WRITE(FOOTER(ptr), PACK(size, 0));
   SET_NEXT_FREE_BLOCK(ptr, 0);
   merge_block(ptr);
-  // printf("free end\n");
 }
 
 /*
@@ -372,7 +332,6 @@ void free(void *ptr) {
  * new block, copying its data, and freeing the old block.
  */
 void *realloc(void *oldptr, size_t size) {
-  // printf("realloc begin\n");
   if (oldptr == NULL) {
     return malloc(size);
   }
@@ -390,7 +349,6 @@ void *realloc(void *oldptr, size_t size) {
     copySize = size;
   memcpy(newptr, oldptr, copySize - BSIZE);
   free(oldptr);
-  // printf("realloc end\n");
   return newptr;
 }
 
@@ -417,7 +375,6 @@ void *calloc(size_t nmemb, size_t size) {
  */
 void mm_checkheap(int verbose) {
   /*Get gcc to be quiet. */
-  // printf("mm_checkheap begin\n");
   verbose = verbose;
 
   char *ptr;
@@ -504,6 +461,4 @@ void mm_checkheap(int verbose) {
       printf("Block in free list is not in the heap\n");
     ptr = (char *)GET_NEXT_FREE_BLOCK(ptr);
   }
-
-  // printf("mm_checkheap end\n");
 }

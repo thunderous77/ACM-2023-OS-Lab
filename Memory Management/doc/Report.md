@@ -459,8 +459,42 @@
   
   感觉如果数据是 8 的整数 byte 的话，这个版本可以再调整一下。不过既然没有这种数据，就懒得改了。
   
+* 突然得知本地测试的时候吞吐量是取了平均再算的，而 oj 上是每个点单独算的，吞吐量还是不够，还是要写 segregated free list
+
+  ```shell
+  # mm-SFL.c
+  Results for mm malloc:
+     valid  util   ops    secs     Kops  trace
+   * yes    99%    4805  0.000103 46661 ./traces/amptjp.rep
+   * yes    99%    5032  0.000113 44556 ./traces/cccp.rep
+   * yes    95%   14400  0.000222 64793 ./traces/coalescing-bal.rep
+     yes   100%      15  0.000000 58182 ./traces/corners.rep
+   * yes    99%    5683  0.000137 41479 ./traces/cp-decl.rep
+   * yes    78%     118  0.000002 66085 ./traces/hostname.rep
+   * yes    88%   19405  0.000407 47715 ./traces/login.rep
+   * yes    86%     372  0.000005 68305 ./traces/ls.rep
+     yes    82%      17  0.000000 79610 ./traces/malloc-free.rep
+     yes    73%      10  0.000000 53088 ./traces/malloc.rep
+   * yes    82%    1494  0.000025 60079 ./traces/perl.rep
+   * yes    95%    4800  0.000388 12386 ./traces/random.rep
+   * yes    89%     147  0.000002 69432 ./traces/rm.rep
+     yes    98%      12  0.000000 45775 ./traces/short2.rep
+   * yes    55%   57716  0.000588 98231 ./traces/boat.rep
+   * yes    88%     200  0.000002 94118 ./traces/lrucd.rep
+   * yes    88%  100000  0.003826 26137 ./traces/alaska.rep
+   * yes    95%     200  0.000003 71642 ./traces/nlydf.rep
+   * yes    88%     200  0.000002 83147 ./traces/qyqyc.rep
+   * yes    92%     200  0.000002 94233 ./traces/rulsr.rep
+  16        89%  214772  0.005827 36860
+  
+  Perf index = 55 (util) + 37 (thru) = 92/100
+  ```
+
+  可以发现，random.rep 等数据点的吞吐量提高了不少，这是因为 segregated list 把原来的一条 free list 变成了许多条不同块大小区间的 free list，使得从链表中删除块的时候（由于是单链表，需要遍历）需要遍历的块减少，吞吐量提高。
+
+  另外试了一下，即使使用 segregated list 之后，best fit 的吞吐量依然很小，所以依然采用设置超参数的 first fit + best fit。
 ### 结果
 
 尝试下来比较好的结构：
 
-总体采用 explicit free list，其中 physical list 用双链表，free list 用单链表，最后得分 92.
+总体块的连接采用 segregated free list，其中 physical list 用双链表，free list 用单链表，寻找空闲块的方法使用 first fit + best fit，最后本地得分 92。

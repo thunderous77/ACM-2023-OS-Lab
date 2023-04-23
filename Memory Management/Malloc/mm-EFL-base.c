@@ -1,5 +1,5 @@
 /*
- * mm-EFL.c - Using explicit free list and implement first fit, best fit and
+ * mm-EFL-base.c - Using explicit free list and implement first fit, best fit and
  * first-best fit. The performance of this implementation is relatively
  * good using first best fit(score 89).
  */

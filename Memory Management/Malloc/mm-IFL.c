@@ -39,9 +39,9 @@
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 
-#define WSIZE 4             /* header/footer size (bytes) */
-#define BSIZE 8             /* empty block size (bytes) */
-#define CHUNKSIZE (1 << 12) /* extend heap size (bytes) */
+#define WSIZE 4            /* header/footer size (bytes) */
+#define BSIZE 8            /* empty block size (bytes) */
+#define CHUNKSIZE (1 << 8) /* extend heap size (bytes) */
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 #define PACK(size, alloc)                                                      \
@@ -332,7 +332,12 @@ void *calloc(size_t nmemb, size_t size) {
 }
 
 /*
- *
+ * mm_checkheap - Check the heap.
+ * The constant of the heap is as follows.
+ * 1. The prologue block is BSIZE(8 byte) and allocated(prevent merge).
+ * 2. The epilogue block is 0 byte and allocated(prevent merge).
+ * 3. The block size is multiple of BSIZE(8 byte).
+ * 4. The pointer heap_list is 8 byte after mem_heap_lo().
  */
 void mm_checkheap(int verbose) {
   /*Get gcc to be quiet. */

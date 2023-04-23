@@ -1,5 +1,5 @@
 /*
- * mm-EFL.c - modify on the basis of mm-EFL-base.c, change the double linked
+ * mm-EFL4.c - modify on the basis of mm-EFL-base.c, change the double linked
  * list of physical block to a single linked list. The performance is worse than
  * mm-EFL.c(score 86), detailed reason in report.
  */
