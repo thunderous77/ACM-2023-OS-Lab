@@ -459,7 +459,7 @@
   
   感觉如果数据是 8 的整数 byte 的话，这个版本可以再调整一下。不过既然没有这种数据，就懒得改了。
   
-* 突然得知本地测试的时候吞吐量是取了平均再算的，而 oj 上是每个点单独算的，吞吐量还是不够，还是要写 segregated free list
+* 突然得知本地测试的时候吞吐量是取了平均再算的，而 oj 上是每个点单独算的，吞吐量还是不够，所以还是写 segregated free list
 
   ```shell
   # mm-SFL.c
@@ -490,11 +490,48 @@
   Perf index = 55 (util) + 37 (thru) = 92/100
   ```
 
-  可以发现，random.rep 等数据点的吞吐量提高了不少，这是因为 segregated list 把原来的一条 free list 变成了许多条不同块大小区间的 free list，使得从链表中删除块的时候（由于是单链表，需要遍历）需要遍历的块减少，吞吐量提高。
+* 然而，oj 上测完发现吞吐量和本地的差了很多，之前基于牺牲吞吐量的优化基本都作废了......
 
-  另外试了一下，即使使用 segregated list 之后，best fit 的吞吐量依然很小，所以依然采用设置超参数的 first fit + best fit。
+* 峰回路转，又有一个巧妙的优化：其实空闲链表的指针只有空闲块才有，而这些块中间那些 malloc 又 free 的空间（至少 8 byte ）是闲置的，因此可以把空闲链表的指针存到中间 malloc 之后分配给用户的空间，这样子每个块只需要 8 byte 来维护数据结构，同时空闲链表完全可以使用双链表。
+
+  于是 reset 回了最初的 explicit free list 的链表版本，加上了这个优化，本地终于跑到了 95 分
+
+  ```shell
+  # mm-ELF5.c
+  Results for mm malloc:
+     valid  util   ops    secs     Kops  trace
+   * yes    99%    4805  0.000099 48556 ./traces/amptjp.rep
+   * yes   100%    5032  0.000131 38367 ./traces/cccp.rep
+   * yes    97%   14400  0.000082174873 ./traces/coalescing-bal.rep
+     yes   100%      15  0.000000113684 ./traces/corners.rep
+   * yes    99%    5683  0.000137 41483 ./traces/cp-decl.rep
+   * yes    85%     118  0.000001131086 ./traces/hostname.rep
+   * yes    91%   19405  0.000186104380 ./traces/login.rep
+   * yes    90%     372  0.000003134762 ./traces/ls.rep
+     yes    88%      17  0.000000124739 ./traces/malloc-free.rep
+     yes    90%      10  0.000000114059 ./traces/malloc.rep
+   * yes    87%    1494  0.000012124518 ./traces/perl.rep
+   * yes    93%    4800  0.000408 11765 ./traces/random.rep
+   * yes    93%     147  0.000001123339 ./traces/rm.rep
+     yes    99%      12  0.000000108000 ./traces/short2.rep
+   * yes    55%   57716  0.001360 42449 ./traces/boat.rep
+   * yes    90%     200  0.000002121776 ./traces/lrucd.rep
+   * yes    92%  100000  0.003438 29089 ./traces/alaska.rep
+   * yes    92%     200  0.000002114342 ./traces/nlydf.rep
+   * yes    90%     200  0.000002123011 ./traces/qyqyc.rep
+   * yes    91%     200  0.000001137799 ./traces/rulsr.rep
+  16        90%  214772  0.005864 36625
+  
+  Perf index = 58 (util) + 37 (thru) = 95/100
+  ```
+
+  这里的分配策略是从 first fit 往后找 15 个空闲块
+
+  到 oj 上测了一下，oj 上最好的参数是往后找 2 个空闲块（不然吞吐量就爆炸了），可以达到 1416 分（满分 1600），虽然和本地还是有不小的差距，但是尽力的
+
+* 继续把这个优化加到 segregated free list 的版本，本地差不多（因为基于同样的分配策略，而本地吞吐量都是满分），但是上了 oj 吞吐量反而比之前小。想了一下，大概是 oj 对吞吐量卡的比较死，之前 explicit free list 的版本基本近似于 first fit，而 segregated free list 中判断一个块属于哪个大小的类虽然是 O(1) 的，但是常数较大，最后反而性能不佳。segregated free list 要发挥出优势，还是要在 best fit 遍历比较多的块的前提下，因为它排除了一些过小的空闲块。
 ### 结果
 
-尝试下来比较好的结构：
+针对在线的 oj 测评机尝试下来比较好的结构：
 
-总体块的连接采用 segregated free list，其中 physical list 用双链表，free list 用单链表，寻找空闲块的方法使用 first fit + best fit，最后本地得分 92。
+总体块的连接采用 explicit free list，其中 physical list，free list 都采用双链表，寻找空闲块的方法使用 first fit + best fit，最后得分 1416 / 1600。
