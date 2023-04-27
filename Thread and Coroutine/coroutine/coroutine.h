@@ -1,14 +1,14 @@
 // Reference : http://jyywiki.cn/OS/2022/labs/M2
+#include <pthread.h>
 #ifndef COROUTINE_H
 #define COROUTINE_H
 
 typedef long long cid_t;
-#define MAXN 10
-#define UNAUTHORIZED -1
-#define FINISHED 2
-#define RUNNING 1
-#define IDLE 0
-#define STACK_SIZE 8 * 1024
+#define MAXN (50000)
+#define UNAUTHORIZED (-1)
+#define FINISHED (2)
+#define RUNNING (1)
+#define IDLE (0)
 
 // 模拟寄存器
 enum Registers {
@@ -40,7 +40,7 @@ void coroutine_ret();
 typedef struct coroutine_pool coroutine_pool;
 typedef struct coroutine_context coroutine_context;
 
-// 栈大小默认为 8 KB
+// 栈大小默认为 16 KB
 struct coroutine_context {
   unsigned long long *stack;
   unsigned long long stack_size;
@@ -54,6 +54,7 @@ struct coroutine_context {
   int retval;
   int status;
   cid_t cid;
+  coroutine_context *caller_coroutine;
 
   // 保存协程之间的关系
   coroutine_pool *pool;
@@ -64,7 +65,7 @@ struct coroutine_context {
 
 coroutine_context *create_coroutine_context(int (*routine)(void),
                                             coroutine_context *,
-                                            coroutine_pool *, cid_t cid);
+                                            coroutine_pool *, cid_t);
 
 void destruct_coroutine_context(coroutine_context *);
 
@@ -72,7 +73,7 @@ void coroutine_main(coroutine_context *);
 
 void yield(coroutine_context *);
 
-void resume(coroutine_context *);
+void resume(coroutine_context *, coroutine_context *);
 
 void yield_resume(coroutine_context *, coroutine_context *);
 
@@ -80,6 +81,8 @@ struct coroutine_pool {
   coroutine_context *current_coroutine;
   coroutine_context *root_coroutine;
   int coroutine_cnt;
+  // store pthread id
+  pthread_t pid;
 };
 
 coroutine_pool *create_coroutine_pool();

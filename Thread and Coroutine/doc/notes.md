@@ -35,6 +35,8 @@ int pthread_join(pthread_t thread, //指定接收的进程
 
 ### 实现思路
 
+#### 单线程
+
 * **coroutine_switch**
 
   参数 save 为 caller/callee Registers, 地址在传参数的时候存在 `%rdi` 中，之后把物理寄存器的值存到 `%rdi` 起始的一段模拟寄存器中的对应“寄存器”中，具体 asm 实现代码如下：
@@ -82,42 +84,35 @@ int pthread_join(pthread_t thread, //指定接收的进程
       ret
   ```
 
-  
-
 * **yield**
 
-  * 没有协程可以切换，直接切换回调用 yield 的上下文
-
-    ```c
-    void yield(coroutine_context *coroutine) {
-      // 当前协程变为 root 线程
-      coroutine->pool->current_coroutine = coroutine->pool->root_coroutine;
-      coroutine->status = IDLE;
-      coroutine_switch(coroutine->callee_registers, coroutine->caller_registers);
-    }
-    ```
+  * 没有协程可以切换，继续执行当前协程
 
   * yield 之后切换成新的协程
+  
+    由于切换的协程执行完之后需要把 `current_coroutine` 修改成 `yield()` 函数所在的原协程，因此需要在每个协程中保存调用的协程 `caller_coroutine`
+#### 多线程
 
-    这里 yield + resume 会出现问题， yield 执行 switch 之后直接切回调用 yield 的上下文了
+* 使用 `pthread_self()` 函数获得当前协程的 `pid`，使用 `pthread_equal()` 函数比较两个 `pid` 是否相等
 
-    需要保存 old callee registers，向物理寄存器内存入 new callee registers 并转移 caller registers
+* 现在给每一个线程开一个单独的协程池 `coroutine_pool`，把原来的一个协程池改成了一个协程池数组，每个协程池中存对应协程的 `pid`
 
-    ```c
-    void yield_resume(coroutine_context *old_coroutine,
-                      coroutine_context *new_coroutine) {
-      new_coroutine->pool->current_coroutine = new_coroutine;
-      old_coroutine->status = IDLE;
-      // 之前 search 保证新协程没有完成
-      new_coroutine->status = RUNNING;
-      for (int i = 0; i < RegisterCount; ++i)
-        new_coroutine->caller_registers[i] = old_coroutine->caller_registers[i];
-      coroutine_switch(old_coroutine->callee_registers,
-                       new_coroutine->callee_registers);
-    }
-    ```
+* 在 `co_start()` 函数中给新的线程开协程池
 
-    
+  ```c
+    int current_pool_id = search_pool_id(pthread_self());
+    // initialize coroutine_pool
+    if (current_pool_id == -1) {
+      current_pool = create_coroutine_pool();
+      my_pool[pool_cnt++] = current_pool;
+      current_pool->pid = pthread_self();
+    } else
+      current_pool = my_pool[current_pool_id];
+  ```
+
+* 上锁：
+
+  只有协程池相关的全局变量是不同线程共用的。另外，只有 `co_start()` 函数中会修改协程池，且某个线程对于协程池的修改不会影响其他的线程对于协程池的查询（修改是在最后加一个新的协程池），所以只需要给上面 `co_start()` 函数的代码加上锁即可（防止一个线程的多个协程同时调用 `co_start()` 函数从而给同一个线程创建多个协程池）。
 
 ### C 
 
@@ -133,29 +128,4 @@ int pthread_join(pthread_t thread, //指定接收的进程
   ```c
   typedef struct coroutine_pool coroutine_pool;
   ```
-
-
-## Bonus: 实现协程内核隔离
-
-[Reference](https://blog.csdn.net/whatday/article/details/104430169)
-
-* Namespace
-
-  **Namespace 是 Linux 内核用来隔离内核资源的方式。**通过 namespace 可以让一些进程只能看到与自己相关的一部分资源，而另外一些进程也只能看到与它们自己相关的资源，这两拨进程根本就感觉不到对方的存在。具体的实现方式是把一个或多个进程的相关资源指定在同一个 namespace 中。
-
-* clone() 函数
-
-  通过 clone() 在创建新进程的同时创建 namespace。
-
-  ```c
-  #define _GNU_SOURCE
-  #include <sched.h>
-  int clone(int (*fn)(void *), void *child_stack, int flags, void *arg);
-  // fn：指定一个由新进程执行的函数。当这个函数返回时，子进程终止。该函数返回一个整数，表示子进程的退出代码。
-  // child_stack：传入子进程使用的栈空间，也就是把用户态堆栈指针赋给子进程的 esp 寄存器(高位内存地址)。调用进程(指调用 clone() 的进程)应该总是为子进程分配新的堆栈。
-  // flags：表示使用哪些 CLONE_ 开头的标志位，与 namespace 相关的有CLONE_NEWIPC、CLONE_NEWNET、CLONE_NEWNS、CLONE_NEWPID、CLONE_NEWUSER、CLONE_NEWUTS 和 CLONE_NEWCGROUP。
-  // arg：指向传递给 fn() 函数的参数。
-  ```
-
-  
 

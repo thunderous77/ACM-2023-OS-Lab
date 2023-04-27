@@ -1,19 +1,20 @@
-#define _GNU_SOURCE
 #include "coroutine.h"
-#include <sched.h>
-#include <signal.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-coroutine_pool *my_pool = NULL;
+extern void coroutine_init();
+extern void coroutine_switch(unsigned long long *save,
+                             unsigned long long *restore);
+extern void coroutine_ret();
 
 coroutine_context *create_coroutine_context(int (*routine)(void),
                                             coroutine_context *parent_coroutine,
                                             coroutine_pool *pool, cid_t cid) {
   coroutine_context *coroutine;
   coroutine = (coroutine_context *)malloc(sizeof(coroutine_context));
-  coroutine->stack_size = STACK_SIZE / sizeof(unsigned long long);
+  coroutine->stack_size = 8 * 1024 / sizeof(unsigned long long);
   coroutine->stack = (unsigned long long *)malloc(coroutine->stack_size *
                                                   sizeof(unsigned long long));
 
@@ -36,6 +37,7 @@ coroutine_context *create_coroutine_context(int (*routine)(void),
   coroutine->retval = 0;
   coroutine->status = IDLE;
   coroutine->cid = cid;
+  coroutine->caller_coroutine = NULL;
 
   coroutine->pool = pool;
   coroutine->parent_coroutine = parent_coroutine;
@@ -54,48 +56,23 @@ void destruct_coroutine_context(coroutine_context *coroutine) {
 }
 
 void coroutine_main(coroutine_context *coroutine) {
-  // 隔离协程资源
-  // Reference: https://blog.csdn.net/whatday/article/details/104430169
-  // clone(coroutine_run, (void *)coroutine->callee_registers[RSP],
-  //       CLONE_NEWIPC | CLONE_NEWNET | CLONE_NEWNS | CLONE_NEWPID |
-  //           CLONE_NEWUSER | CLONE_NEWUTS | CLONE_NEWCGROUP,
-  //       NULL);
   coroutine->retval = (coroutine->func());
   coroutine->status = FINISHED;
+  coroutine->pool->current_coroutine = coroutine->caller_coroutine;
   // 执行完后切换回调用 coroutine 的上下文
   coroutine_switch(coroutine->callee_registers, coroutine->caller_registers);
 }
 
-// 没有协程可以切换,直接切换回调用 coroutine 的上下文
-void yield(coroutine_context *coroutine) {
-  // 当前协程变为 root 线程
-  coroutine->pool->current_coroutine = coroutine->pool->root_coroutine;
-  coroutine->status = IDLE;
-  coroutine_switch(coroutine->callee_registers, coroutine->caller_registers);
-}
-
-void resume(coroutine_context *coroutine) {
-  coroutine->pool->current_coroutine = coroutine;
+void resume(coroutine_context *old_coroutine,
+            coroutine_context *new_coroutine) {
   // 防止 resume 已完成的协程
-  if (coroutine->status != FINISHED)
-    coroutine->status = RUNNING;
+  if (new_coroutine->status != FINISHED)
+    new_coroutine->status = RUNNING;
   else
     return;
-  coroutine_switch(coroutine->caller_registers, coroutine->callee_registers);
-}
-
-/* 这里 yield + resume 会出现问题, yield 执行 switch 之后直接切回调用 yield
-的上下文了, 需要保存 old callee registers,向物理寄存器内存入 new callee
-registers 并转移 caller registers */
-void yield_resume(coroutine_context *old_coroutine,
-                  coroutine_context *new_coroutine) {
   new_coroutine->pool->current_coroutine = new_coroutine;
-  old_coroutine->status = IDLE;
-  // 之前 search 保证新协程没有完成
-  new_coroutine->status = RUNNING;
-  for (int i = 0; i < RegisterCount; ++i)
-    new_coroutine->caller_registers[i] = old_coroutine->caller_registers[i];
-  coroutine_switch(old_coroutine->callee_registers,
+  new_coroutine->caller_coroutine = old_coroutine;
+  coroutine_switch(new_coroutine->caller_registers,
                    new_coroutine->callee_registers);
 }
 
@@ -108,10 +85,15 @@ coroutine_pool *create_coroutine_pool() {
   return pool;
 }
 
-void destruct_coroutine_pool(coroutine_pool *pool) {
-  destruct_coroutine_context(pool->root_coroutine);
-  pool->coroutine_cnt = 0;
-  free(pool);
+void destruct_coroutine_pool(coroutine_pool **pool) {
+  for (int i = 0; i < 50; i++) {
+    coroutine_pool *current_pool = pool[i];
+    if (pool != NULL) {
+      destruct_coroutine_context(current_pool->root_coroutine);
+      current_pool->coroutine_cnt = 0;
+      free(current_pool);
+    }
+  }
 }
 
 // 加入子协程, 返回子协程
@@ -124,6 +106,10 @@ coroutine_context *add_coroutine(coroutine_pool *pool, int (*routine)(void)) {
   pool->coroutine_cnt++;
   return new_coroutine;
 }
+
+int pool_cnt = 0;
+coroutine_pool *my_pool[MAXN] = {NULL};
+pthread_mutex_t lk = PTHREAD_MUTEX_INITIALIZER;
 
 coroutine_context *search_by_cid(cid_t cid, coroutine_context *coroutine) {
   if (coroutine->cid == cid) {
@@ -139,59 +125,92 @@ coroutine_context *search_by_cid(cid_t cid, coroutine_context *coroutine) {
   return NULL;
 }
 
+int search_pool_id(pthread_t current_pthread) {
+  int ret_pool_id = -1;
+  for (int i = 0; i < pool_cnt; i++) {
+    if (my_pool[i] != NULL) {
+      if (pthread_equal(my_pool[i]->pid, current_pthread)) {
+        ret_pool_id = i;
+        break;
+      }
+    }
+  }
+  return ret_pool_id;
+}
+
 int co_start(int (*routine)(void)) {
+  coroutine_pool *current_pool;
+  pthread_mutex_lock(&lk);
+  int current_pool_id = search_pool_id(pthread_self());
   // initialize coroutine_pool
-  if (my_pool == NULL)
-    my_pool = create_coroutine_pool();
-  coroutine_context *new_couroutine = add_coroutine(my_pool, routine);
-  resume(new_couroutine);
+  if (current_pool_id == -1) {
+    current_pool = create_coroutine_pool();
+    my_pool[pool_cnt++] = current_pool;
+    current_pool->pid = pthread_self();
+  } else
+    current_pool = my_pool[current_pool_id];
+  pthread_mutex_unlock(&lk);
+  coroutine_context *new_couroutine = add_coroutine(current_pool, routine);
+  resume(current_pool->current_coroutine, new_couroutine);
   return new_couroutine->cid;
 }
 
-int co_getid() { return my_pool->current_coroutine->cid; }
+int co_getid() {
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  return current_pool->current_coroutine->cid;
+}
 
 int co_getret(int cid) {
-  // co_wait(cid);
-  return search_by_cid(cid, my_pool->root_coroutine)->retval;
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  return search_by_cid(cid, current_pool->root_coroutine)->retval;
 }
 
 int co_yield () {
-  cid_t yield_cid = my_pool->current_coroutine->cid;
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  cid_t yield_cid = current_pool->current_coroutine->cid;
   coroutine_context *resume_coroutine = NULL;
-  for (cid_t cid = my_pool->coroutine_cnt - 1; cid >= 0; cid--) {
-    resume_coroutine = search_by_cid(cid, my_pool->root_coroutine);
+  for (cid_t cid = current_pool->coroutine_cnt - 1; cid >= 0; cid--) {
+    resume_coroutine = search_by_cid(cid, current_pool->root_coroutine);
     if (resume_coroutine->status != FINISHED &&
         resume_coroutine->cid != yield_cid) {
       break;
     } else
       resume_coroutine = NULL;
   }
-  // 有可能之前的协程被 yield 之后没有新的协程 resume
-  if (resume_coroutine == NULL) {
-    // 直接切换成调用 yield 的上下文
-    yield(my_pool->current_coroutine);
-  } else {
-    yield_resume(my_pool->current_coroutine, resume_coroutine);
+  // 如果没有其他协程切换就继续执行当前协程
+  if (resume_coroutine != NULL) {
+    resume(current_pool->current_coroutine, resume_coroutine);
   }
   return 0;
 }
 
 int co_waitall() {
-  for (cid_t cid = my_pool->coroutine_cnt - 1; cid >= 0; cid--)
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  for (cid_t cid = current_pool->coroutine_cnt - 1; cid >= 0; cid--)
     co_wait(cid);
   return 0;
 }
 
 int co_wait(int cid) {
-  coroutine_context *coroutine = search_by_cid(cid, my_pool->root_coroutine);
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  coroutine_context *coroutine =
+      search_by_cid(cid, current_pool->root_coroutine);
   while (coroutine->status != FINISHED) {
-    resume(coroutine);
+    resume(current_pool->root_coroutine, coroutine);
   }
   return 0;
 }
 
 int co_status(int cid) {
-  coroutine_context *coroutine = search_by_cid(cid, my_pool->root_coroutine);
+  coroutine_pool *current_pool;
+  current_pool = my_pool[search_pool_id(pthread_self())];
+  coroutine_context *coroutine =
+      search_by_cid(cid, current_pool->root_coroutine);
   if (coroutine != NULL)
     return coroutine->status;
   else
