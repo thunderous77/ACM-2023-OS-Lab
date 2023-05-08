@@ -26,5 +26,15 @@
 * 直接在物理内存上实现 `Implicit free list`，`Explicit free list`，`Segragated free list` 等数据结构
 * 学习指针 debug 以及 malloc 优化
 
+## File System
 
+### Schedule
 
+- [x] task 5
+- [ ] task 6
+- [ ] FUSE
+
+### Introduction
+
+* 学习 `mmap(),fcntl(),ioctl()` 等函数的实现
+* 了解体验 Fuse（Filesystem in Userspace），并基于 libfuse 实现简单的文件系统
