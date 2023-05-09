@@ -32,7 +32,7 @@
 
 - [x] task 5
 - [ ] task 6
-- [ ] FUSE
+- [x] FUSE
 
 ### Introduction
 

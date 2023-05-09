@@ -47,10 +47,8 @@ struct memfs_file {
 const char *getSubstringAfterLastSlash(const char *str) {
   const char *lastSlash = strrchr(str, '/');
   if (lastSlash == NULL) {
-    // 没有找到斜杠
     return str;
   } else {
-    // 返回斜杠后的字符串
     return lastSlash + 1;
   }
 }
@@ -255,16 +253,37 @@ static int my_fuse_write(const char *path, const char *buf, size_t size,
     return -ENOENT;
   }
 
+  // write to the original file
   size_t len = strlen(pf->option->contents);
   if (offset + size > len) {
     pf->option->contents = realloc(pf->option->contents, offset + size + 1);
-    if (!pf->option->contents) {
-      return -ENOMEM;
-    }
   }
 
   strcpy(pf->option->contents + offset, buf);
   pf->option->contents[offset + size] = '\0';
+
+  // write to another file in order to support chatting
+  // example: echo "Hello" > bot2/bot1, write "Hello" to bot1/bot2
+  char *tmp;
+  if ((tmp = strchr(path + 1, '/'))) {
+    char *new_path = malloc(sizeof(char) * strlen(path));
+    strcpy(new_path, tmp);
+    strncat(new_path, path, tmp - path);
+
+    struct memfs_file *pf2 = __search(&root, new_path);
+
+    if (!pf2) {
+      return -ENOENT;
+    }
+
+    size_t len2 = strlen(pf2->option->contents);
+    if (offset + size > len2) {
+      pf2->option->contents = realloc(pf2->option->contents, offset + size + 1);
+    }
+
+    strcpy(pf2->option->contents + offset, buf);
+    pf2->option->contents[offset + size] = '\0';
+  }
   return size;
 }
 
@@ -279,6 +298,8 @@ static int my_fuse_mknod(const char *path, mode_t mode, dev_t rdev) {
   if (pf) {
     return -EEXIST;
   }
+
+  // create the original file
   struct options *new_option = malloc(sizeof(struct options));
   new_option->filename = strdup(getSubstringAfterLastSlash(path));
   new_option->contents = strdup("");
@@ -287,6 +308,29 @@ static int my_fuse_mknod(const char *path, mode_t mode, dev_t rdev) {
   new_node->option = new_option;
   new_node->dir_or_file = 2;
   __insert(&root, new_node);
+
+  // create another file in order to support chatting
+  char *tmp;
+  if ((tmp = strchr(path + 1, '/'))) {
+    char *new_path = malloc(sizeof(char) * strlen(path));
+    strcpy(new_path, tmp);
+    strncat(new_path, path, tmp - path);
+
+    struct memfs_file *new_pf = __search(&root, new_path);
+
+    if (new_pf) {
+      return -EEXIST;
+    }
+
+    struct options *new_option = malloc(sizeof(struct options));
+    new_option->filename = strdup(getSubstringAfterLastSlash(new_path));
+    new_option->contents = strdup("");
+    struct memfs_file *new_node = malloc(sizeof(struct memfs_file));
+    new_node->path = strdup(new_path);
+    new_node->option = new_option;
+    new_node->dir_or_file = 2;
+    __insert(&root, new_node);
+  }
   return 0;
 }
 
