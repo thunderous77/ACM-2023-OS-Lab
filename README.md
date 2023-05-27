@@ -31,7 +31,7 @@
 ### Schedule
 
 - [x] task 5
-- [ ] task 6
+- [x] task 6
 - [x] FUSE
 
 ### Introduction
