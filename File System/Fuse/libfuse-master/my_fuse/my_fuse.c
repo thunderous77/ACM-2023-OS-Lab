@@ -247,6 +247,7 @@ static int my_fuse_read(const char *path, char *buf, size_t size, off_t offset,
 // write data to an open file
 static int my_fuse_write(const char *path, const char *buf, size_t size,
                          off_t offset, struct fuse_file_info *fi) {
+  // printf("write %s\n", path);
   (void)fi;
   struct memfs_file *pf = __search(&root, path);
   if (!pf) {
@@ -255,12 +256,13 @@ static int my_fuse_write(const char *path, const char *buf, size_t size,
 
   // write to the original file
   size_t len = strlen(pf->option->contents);
-  if (offset + size > len) {
-    pf->option->contents = realloc(pf->option->contents, offset + size + 1);
-  }
+  char *store = malloc(sizeof(char) * len);
+  strcpy(store, pf->option->contents);
+  pf->option->contents = malloc(sizeof(char) * (len + size + 1));
 
-  strcpy(pf->option->contents + offset, buf);
-  pf->option->contents[offset + size] = '\0';
+  strcpy(pf->option->contents, store);
+  strcat(pf->option->contents, buf);
+  pf->option->contents[len + size] = '\0';
 
   // write to another file in order to support chatting
   // example: echo "Hello" > bot2/bot1, write "Hello" to bot1/bot2
@@ -277,12 +279,13 @@ static int my_fuse_write(const char *path, const char *buf, size_t size,
     }
 
     size_t len2 = strlen(pf2->option->contents);
-    if (offset + size > len2) {
-      pf2->option->contents = realloc(pf2->option->contents, offset + size + 1);
-    }
+    char *store2 = malloc(sizeof(char) * len2);
+    strcpy(store2, pf2->option->contents);
+    pf2->option->contents = malloc(sizeof(char) * (len2 + size + 1));
 
-    strcpy(pf2->option->contents + offset, buf);
-    pf2->option->contents[offset + size] = '\0';
+    strcpy(pf2->option->contents, store2);
+    strcat(pf2->option->contents, buf);
+    pf2->option->contents[len2 + size] = '\0';  
   }
   return size;
 }
@@ -387,7 +390,11 @@ static int my_fuse_utimes(const char *path, const struct timespec tv[2],
     __insert(&root, new_node);
   }
 
-  utimensat(0, path, tv, AT_SYMLINK_NOFOLLOW);
+  // utimensat(0, path, tv, AT_SYMLINK_NOFOLLOW);
+  time_t now = time(0);
+  pf->file_stat.st_atime = now;
+  pf->file_stat.st_ctime = now;
+  pf->file_stat.st_mtime = now;
 
   return 0;
 }
