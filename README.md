@@ -38,3 +38,17 @@
 
 * 学习 `mmap(),fcntl(),ioctl()` 等函数的实现
 * 了解体验 Fuse（Filesystem in Userspace），并基于 libfuse 实现简单的文件系统
+
+## Networking and Security
+
+### Schedule(only need to do one of the following)
+
+- [ ] Socket Programming
+- [x] CTF
+- [ ] Reproduce a virus
+
+### Introduction
+
+* 学习使用 IDA，pwn 等工具实现逆向工程
+* 学习 overflow，ROP 等技术
+* 学习使用 GDB 获得程序运行的各种信息
