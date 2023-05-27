@@ -92,12 +92,13 @@ https://www.jianshu.com/p/040bb60aa468
 * File：然后实现 `mknod(),open(),release(),unlink(),read(), write()`，就可以执行 `echo,cat,rm` 指令
 * `ls`：实现了 `readdir()` 函数
 * `touch`：实现了 `utimes()` 函数
-* chat 功能：修改了 `write(),mknod()` 函数，在写入或创建文件时，在对应的路径（聊天的目录）下写入或创建副本
 
 #### [基于内核红黑树的数据结构](https://blog.csdn.net/stayneckwind2/article/details/82867062)
 
+后来改成了基于单链表的实现，因为不让直接使用外部库
 
 #### 实现细节
+
 * ```c
   struct my_fuse_file *data = container_of(node, struct my_fuse_file, node);
   ```
@@ -129,3 +130,7 @@ https://www.jianshu.com/p/040bb60aa468
   值0444是一个八进制数字，表示常规文件的权限。第一个数字（0）表示数字以八进制格式表示。接下来的三个数字（444）分别表示所有者、组和其他人的权限。值4表示所有用户的只读权限
 
   `st_mode` 为强链接
+
+#### Bonus
+
+实现了权限检查，同时实现了 chmod 指令
