@@ -203,13 +203,7 @@ static int my_fuse_getattr(const char *path, struct stat *stbuf,
     return -ENOENT;
   }
 
-  // memcpy(stbuf, &pf->file_stat, sizeof(struct stat));
-  stbuf->st_mode = pf->file_stat.st_mode;
-  stbuf->st_nlink = pf->file_stat.st_nlink;
-  stbuf->st_size = pf->file_stat.st_size;
-  stbuf->st_atime = pf->file_stat.st_atime;
-  stbuf->st_mtime = pf->file_stat.st_mtime;
-  stbuf->st_ctime = pf->file_stat.st_ctime; 
+  *stbuf = pf->file_stat;
 
   return 0;
 }
