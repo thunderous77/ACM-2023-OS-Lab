@@ -207,6 +207,9 @@ static int my_fuse_getattr(const char *path, struct stat *stbuf,
   stbuf->st_mode = pf->file_stat.st_mode;
   stbuf->st_nlink = pf->file_stat.st_nlink;
   stbuf->st_size = pf->file_stat.st_size;
+  stbuf->st_atime = pf->file_stat.st_atime;
+  stbuf->st_mtime = pf->file_stat.st_mtime;
+  stbuf->st_ctime = pf->file_stat.st_ctime; 
 
   return 0;
 }
@@ -458,7 +461,7 @@ static int my_fuse_utimes(const char *path, const struct timespec tv[2],
   }
 
   // utimensat(0, path, tv, AT_SYMLINK_NOFOLLOW);
-  time_t now = time(0);
+  time_t now = time(NULL);
   pf->file_stat.st_atime = now;
   pf->file_stat.st_ctime = now;
   pf->file_stat.st_mtime = now;
