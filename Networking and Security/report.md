@@ -10,7 +10,17 @@ guess: ELF 64-bit LSB pie executable, x86-64, version 1 (SYSV), dynamically link
 ## Login
 
 ```c
-printf("Account: ");
+unsigned __int64 sub_A43()
+{
+  int i; // [rsp+4h] [rbp-22Ch]
+  char buf[256]; // [rsp+10h] [rbp-220h] BYREF
+  char v3[16]; // [rsp+110h] [rbp-120h] BYREF
+  FILE *v4; // [rsp+120h] [rbp-110h]
+  unsigned __int64 v5; // [rsp+218h] [rbp-18h]
+
+  v5 = __readfsqword(0x28u);
+  v4 = stderr;
+  printf("Account: ");
   read(0, buf, 0x100uLL);
   printf("Password: ");
   read(0, v3, 0x100uLL);
@@ -22,6 +32,9 @@ printf("Account: ");
       return __readfsqword(0x28u) ^ v5;
     }
   }
+  sub_91A();
+  return __readfsqword(0x28u) ^ v5;
+}
 ```
 
 上面代码告诉我们，只要 account 和 password 相同即可注册。
@@ -84,7 +97,8 @@ rt
 #1  0x000055f739000a1d in ?? ()
 #2  0x000055f739000be2 in ?? ()
 #3  0x00007f5f621edd90 in __libc_start_call_main (main=main@entry=0x55f739000b62, argc=argc@entry=1, argv=argv@entry=0x7fff3cf5e068) at ../sysdeps/nptl/libc_start_call_main.h:58
-#4  0x00007f5f621ede40 in __libc_start_main_impl (main=0x55f739000b62, argc=1, argv=0x7fff3cf5e068, init=<optimized out>, fini=<optimized out>, rtld_fini=<optimized out>, stack_end=0x7fff3cf5e058) at ../csu/libc-start.c:392
+#4  0x00007f5f621ede40 in __libc_start_main_impl (main=0x55f739000b62, argc=1, argv=0x7fff3cf5e068, init=<optimized out>, fini=<optimized out>, rtld_fini=<optimized out>,
+    stack_end=0x7fff3cf5e058) at ../csu/libc-start.c:392
 #5  0x000055f73900083a in ?? ()
 # 7f 开头的是调用 libc 里的函数，55 开头的是调用 guess 里的函数
 
@@ -133,16 +147,24 @@ x $rsp
 
 ### 通过 gdb 以及 login fail 得到运行时地址
 
+阅读 Login 代码可以发现，我们的 password 存在 v3，而后面的 v4 在之前写入了 stderr 的地址
+
 ```shell
 # gdb
-0x7ffca50abf50: 0x0000000000000a62(输入的password'b')       0x3d071f4750cdf300
-0x7ffca50abf60: 0x00007fc78f1346a0(某个libc的地址)    		0x00007ffca50ac070
+0x7ffca50abf50: 0x0000000000000a62(输入的password'b')      0x3d071f4750cdf300
+0x7ffca50abf60: 0x00007fc78f1346a0(stderr的地址)    		0x00007ffca50ac070
 
 (gdb) p system
 $1 = {int (const char *)} 0x7fc78ef6ad60 <__libc_system>
+
+(gdb) x 0x7fc78ef6ad60
+0x7fc78ef6ad60 <_IO_2_1_stderr_>:       0x00000000fbad2087
 ```
 
-于是我们知道了 system 函数和某个 libc 中不知名地址之间的相对距离
+我们有两种方法得到这个函数与 system 函数的相对距离：
+
+* 可以在同一次 gdb 调试中直接比较两者的地址，得到相对距离
+* 也可以在 gdb 中获取这个地址的函数名，然后在本地使用 pwn 获得这两个函数的相对距离
 
 运行时，由于 Login 的比较以 strlen(buf) 结束，所以如果 account 长而 password 短，则在比较完 password 之后会比较 account 的后半段和内存中 password 之后的内容，也就是上面的某个 libc 地址。我们可以通过不断的尝试 account 后半段的内容，通过返回值--是否login 成功来获取那个 libc 地址
 
